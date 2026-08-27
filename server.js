@@ -41,47 +41,60 @@ app.get('/api/download-progress', async (req, res) => {
 
         sendProgress(30, 'সবগুলো পেজ স্ক্যান করা হচ্ছে...');
 
-        // ডিপ স্ক্রলিং: ড্রাইভের সব ক্যানভাস লোড করার জন্য
+        // ১. অটো-স্ক্রলিং (সব পেজ লোড নিশ্চিত করতে)
         await page.evaluate(async () => {
-            const container = document.querySelector('.ndfHFb-c4CoJf-a91vB-wzpB63') || document.body;
+            const container = document.querySelector('div[role="main"]') || document.body;
             let lastHeight = 0;
             let currentHeight = container.scrollHeight;
 
             while (lastHeight < currentHeight) {
                 lastHeight = currentHeight;
-                container.scrollBy(0, 500);
+                window.scrollBy(0, 800);
                 await new Promise(r => setTimeout(r, 400));
                 currentHeight = container.scrollHeight;
             }
         });
 
-        sendProgress(50, 'পেজ এলিমেন্টগুলো প্রসেস করা হচ্ছে...');
+        sendProgress(45, 'ডকুমেন্টের পেজ সনাক্ত করা হচ্ছে...');
 
-        // পেজগুলোর ডাইরেক্ট স্ক্রিনশট নেওয়া (প্রতিটি আলাদা পেজ হিসেবে)
-        const pageNodes = await page.$$('.ndfHFb-c4CoJf-g3VI9-wzpB63');
+        // ২. ফ্লেক্সিবল সিলেক্টর লজিক (গুগলের ক্লাস পরিবর্তন হলেও কাজ করবে)
+        let pageNodes = await page.$$('div[role="option"]');
         
         if (pageNodes.length === 0) {
-            throw new Error('ড্রাইভের পেজগুলো খুঁজে পাওয়া যায়নি। ফাইলটি পাবলিক কি না চেক করুন।');
+            pageNodes = await page.$$('div[class*="g3VI9"]');
+        }
+        if (pageNodes.length === 0) {
+            pageNodes = await page.$$('.drive-viewer-page, .ndfHFb-c4CoJf-g3VI9-wzpB63');
         }
 
         const pdfDoc = await PDFDocument.create();
-        const totalPages = pageNodes.length;
 
-        for (let i = 0; i < totalPages; i++) {
-            // প্রতিটি পেজ স্ক্রিনে ভিউ করা
-            await pageNodes[i].scrollIntoView();
-            await new Promise(r => setTimeout(r, 200));
+        // ৩. পেজ খুঁজে পাওয়া গেলে পেজ বাই পেজ স্ক্রিনশট মোড
+        if (pageNodes.length > 0) {
+            const totalPages = pageNodes.length;
+            sendProgress(50, `মোট ${totalPages} টি পেজ সনাক্ত হয়েছে। প্রসেসিং চলছে...`);
 
-            // শুধুমাত্র পেজ অংশের স্ক্রিনশট নেওয়া (পুরো স্ক্রিনের নয়)
-            const imgBuffer = await pageNodes[i].screenshot({ type: 'jpeg', quality: 90 });
-            const image = await pdfDoc.embedJpg(imgBuffer);
+            for (let i = 0; i < totalPages; i++) {
+                await pageNodes[i].scrollIntoView();
+                await new Promise(r => setTimeout(r, 300));
+
+                const imgBuffer = await pageNodes[i].screenshot({ type: 'jpeg', quality: 90 });
+                const image = await pdfDoc.embedJpg(imgBuffer);
+                
+                const pdfPage = pdfDoc.addPage([image.width, image.height]);
+                pdfPage.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+
+                const percent = 50 + Math.round(((i + 1) / totalPages) * 45);
+                sendProgress(percent, `পেজ ${i + 1}/${totalPages} প্রসেসড...`);
+            }
+        } else {
+            // ৪. ব্যাকআপ মেকানিজম: পেজ নোড না পেলে ফুল পেজ ক্যাপচার (Fall-back)
+            sendProgress(60, 'বিকল্প পদ্ধতিতে সম্পূর্ণ ফাইলটি ক্যাপচার করা হচ্ছে...');
             
-            // আসল সাইজ অনুযায়ী PDF পেজ গঠন
+            const fullScreenshot = await page.screenshot({ fullPage: true, type: 'jpeg', quality: 90 });
+            const image = await pdfDoc.embedJpg(fullScreenshot);
             const pdfPage = pdfDoc.addPage([image.width, image.height]);
             pdfPage.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
-
-            const percent = 50 + Math.round(((i + 1) / totalPages) * 45);
-            sendProgress(percent, `পেজ ${i + 1}/${totalPages} প্রসেসড...`);
         }
 
         await browser.close();
