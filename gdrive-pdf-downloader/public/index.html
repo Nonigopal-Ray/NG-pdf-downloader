@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive View-Only PDF Downloader</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 500px; text-align: center; }
+        input[type="text"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
+        button { background: #0284c7; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; }
+        button:disabled { background: #94a3b8; }
+        #status { margin-top: 15px; font-size: 14px; color: #475569; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>View-Only PDF Downloader</h2>
+        <p>গুগল ড্রাইভের View-Only লিংকটি নিচে দিন:</p>
+        <input type="text" id="driveUrl" placeholder="https://drive.google.com/file/d/..." />
+        <button id="downloadBtn" onclick="processPdf()">PDF ডাউনলোড করুন</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function processPdf() {
+            const urlInput = document.getElementById('driveUrl').value.trim();
+            const statusDiv = document.getElementById('status');
+            const btn = document.getElementById('downloadBtn');
+
+            if (!urlInput) {
+                alert('অনুগ্রহ করে একটি লিংক দিন।');
+                return;
+            }
+
+            btn.disabled = true;
+            statusDiv.innerText = 'প্রসেসিং চলছে... এতে ১-২ মিনিট সময় লাগতে পারে।';
+
+            try {
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: urlInput })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || 'ডাউনলোড ব্যর্থ হয়েছে।');
+                }
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'View_Only_Document.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                statusDiv.innerText = 'ডাউনলোড সফল হয়েছে!';
+            } catch (err) {
+                statusDiv.innerText = 'ত্রুটি: ' + err.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+          </html>
