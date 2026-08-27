@@ -1,4 +1,4 @@
-name: GDrive PDF Downloader
+name: NG PDF Downloader
 
 on:
   workflow_dispatch:
