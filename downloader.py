@@ -20,19 +20,28 @@ def download_pdf(drive_url):
     try:
         print(f"Opening Drive Link: {drive_url}")
         driver.get(drive_url)
-        time.sleep(7)
+        time.sleep(8)  # Initial wait for document framework to load
 
-        # Better Lazy Loading Scroll (Slow scroll to force load all pages)
-        print("Scrolling through all pages...")
-        last_height = 0
-        for _ in range(30):  # Maximum scroll loops for large documents
-            driver.execute_script("window.scrollBy(0, 800);")
-            time.sleep(1.2)
-            new_height = driver.execute_script("return document.body.scrollHeight")
-            # Extra trigger to load lower view containers
+        # Advanced Scroll Logic to trigger all lazy-loaded pages
+        print("Force loading all pages...")
+        scroll_pause_time = 1.5
+        
+        # Get total scroll height dynamically
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        
+        # Incremental scroll loop
+        for i in range(1, 60):  # Supports up to large multi-page files
+            driver.execute_script("window.scrollBy(0, 600);")
+            time.sleep(scroll_pause_time)
+            
+            # Trigger resize event to force iframe/canvas rendering
             driver.execute_script("window.dispatchEvent(new Event('resize'));")
+            
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if i % 10 == 0:
+                print(f"Scroll iteration {i} completed...")
 
-        # JS Extraction Script
+        # Extract canvas rendering image data via JavaScript
         js_extract = """
         var callback = arguments[arguments.length - 1];
         var imgs = Array.from(document.querySelectorAll('img[src^="blob:"]'));
@@ -54,14 +63,14 @@ def download_pdf(drive_url):
         }
         processImage(0);
         """
-        driver.set_script_timeout(60)
+        driver.set_script_timeout(90)
         images_base64 = driver.execute_async_script(js_extract)
 
         if not images_base64:
-            print("Error: No pages found! Check file access permissions.")
+            print("Error: No rendered pages found. Please ensure the link is publicly accessible.")
             return
 
-        print(f"Total Pages Found: {len(images_base64)}")
+        print(f"Total Pages Captured: {len(images_base64)}")
         pdf_path = "output.pdf"
         c = None
 
@@ -83,7 +92,7 @@ def download_pdf(drive_url):
 
         if c:
             c.save()
-            print("PDF successfully created!")
+            print("PDF generation completed successfully!")
 
     finally:
         driver.quit()
@@ -92,4 +101,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         download_pdf(sys.argv[1])
     else:
-        print("Error: No URL provided.")
+        print("Error: No Drive URL provided.")
