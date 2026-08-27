@@ -28,20 +28,17 @@ jobs:
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    # Uploading to tmpfiles.org for Direct PDF Download
+    # Permanent & Stable Direct PDF Link
     - name: Generate Direct PDF Link
       run: |
         echo "================================================="
         echo "YOUR DIRECT PDF DOWNLOAD LINK:"
-        RESPONSE=$(curl -F "file=@output.pdf" https://tmpfiles.org/api/v1/upload)
-        URL=$(echo $RESPONSE | grep -o '"url":"[^"]*' | grep -o '[^"]*$')
-        DIRECT_URL=$(echo $URL | sed 's/tmpfiles.org\//tmpfiles.org\/dl\//')
-        echo "$DIRECT_URL"
+        curl -F "reqtype=fileupload" -F "time=1h" -F "fileToUpload=@output.pdf" https://litterbox.catbox.moe/resources/internals/api.php
+        echo ""
         echo "================================================="
 
-    # Standard Backup Artifact (ZIP)
-    - name: Upload Artifact (Backup)
+    - name: Save Backup PDF
       uses: actions/upload-artifact@v4
       with:
-        name: NG-Downloaded-PDF
+        name: Downloaded_PDF_File
         path: output.pdf
