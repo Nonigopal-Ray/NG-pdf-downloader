@@ -28,7 +28,16 @@ jobs:
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    - name: Upload Artifact (ZIP Download)
+    # Litterbox Upload Step for Direct Download Link
+    - name: Generate Direct PDF Link
+      run: |
+        echo "================================================="
+        echo "YOUR DIRECT PDF DOWNLOAD LINK:"
+        curl -s -F "reqtype=fileupload" -F "time=1h" -F "fileToUpload=@output.pdf" https://litterbox.catbox.moe/resources/internals/api.php
+        echo ""
+        echo "================================================="
+
+    - name: Upload Artifact (Backup)
       uses: actions/upload-artifact@v4
       with:
         name: NG-Downloaded-PDF
