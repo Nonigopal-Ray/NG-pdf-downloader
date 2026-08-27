@@ -3,66 +3,125 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Drive View-Only PDF Downloader</title>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 500px; text-align: center; }
-        input[type="text"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; }
-        button { background: #0284c7; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 4px; cursor: pointer; width: 100%; }
-        button:disabled { background: #94a3b8; }
-        #status { margin-top: 15px; font-size: 14px; color: #475569; }
-    </style>
+    <title>DrivePDF | Professional View-Only PDF Downloader</title>
+    <!-- Tailwind CSS for Professional UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body>
-    <div class="container">
-        <h2>View-Only PDF Downloader</h2>
-        <p>গুগল ড্রাইভের View-Only লিংকটি নিচে দিন:</p>
-        <input type="text" id="driveUrl" placeholder="https://drive.google.com/file/d/..." />
-        <button id="downloadBtn" onclick="processPdf()">PDF ডাউনলোড করুন</button>
-        <div id="status"></div>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-xl w-full bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 space-y-6">
+        <!-- Header -->
+        <div class="text-center space-y-2">
+            <div class="inline-flex items-center justify-center w-14 h-14 bg-indigo-600/20 text-indigo-400 rounded-2xl mb-2 border border-indigo-500/30">
+                <i class="fa-solid fa-file-pdf text-2xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white tracking-wide">DrivePDF Downloader</h1>
+            <p class="text-slate-400 text-sm">গুগল ড্রাইভের "View-Only" PDF সহজে এবং দ্রুত ডাউনলোড করুন</p>
+        </div>
+
+        <!-- Form -->
+        <div class="space-y-4">
+            <div>
+                <label for="driveUrl" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Google Drive PDF Link</label>
+                <div class="relative">
+                    <input type="url" id="driveUrl" placeholder="https://drive.google.com/file/d/..." 
+                        class="w-full bg-slate-900/80 border border-slate-700 text-white rounded-xl px-4 py-3.5 pl-11 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all placeholder:text-slate-500" />
+                    <i class="fa-solid fa-link absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                </div>
+            </div>
+
+            <button id="downloadBtn" onclick="startDownload()" 
+                class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] font-medium text-white py-3.5 px-4 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>PDF জেনারেট করুন</span>
+                <i class="fa-solid fa-arrow-right text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Progress Box (Hidden by default) -->
+        <div id="progressContainer" class="hidden space-y-3 pt-4 border-t border-slate-700/60">
+            <div class="flex justify-between items-center text-xs font-medium">
+                <span id="statusText" class="text-indigo-400 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-notch animate-spin"></i> প্রসেসিং শুরু হচ্ছে...
+                </span>
+                <span id="progressPercent" class="text-slate-300">0%</span>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700/50">
+                <div id="progressBar" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+        </div>
     </div>
 
     <script>
-        async function processPdf() {
+        async function startDownload() {
             const urlInput = document.getElementById('driveUrl').value.trim();
-            const statusDiv = document.getElementById('status');
             const btn = document.getElementById('downloadBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const statusText = document.getElementById('statusText');
 
             if (!urlInput) {
-                alert('অনুগ্রহ করে একটি লিংক দিন।');
+                alert('অনুগ্রহ করে একটি সঠিক লিঙ্ক দিন।');
                 return;
             }
 
+            // Reset UI
             btn.disabled = true;
-            statusDiv.innerText = 'প্রসেসিং চলছে... এতে ১-২ মিনিট সময় লাগতে পারে।';
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressPercent.innerText = '0%';
+            statusText.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin"></i> সার্ভারের সাথে সংযোগ করা হচ্ছে...';
 
             try {
-                const response = await fetch('/api/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url: urlInput })
-                });
+                // SSE connection for real-time tracking
+                const encodedUrl = encodeURIComponent(urlInput);
+                const eventSource = new EventSource(`/api/download-progress?url=${encodedUrl}`);
 
-                if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error || 'ডাউনলোড ব্যর্থ হয়েছে।');
-                }
+                eventSource.onmessage = async (event) => {
+                    const data = JSON.parse(event.data);
 
-                const blob = await response.blob();
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = downloadUrl;
-                a.download = 'View_Only_Document.pdf';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                statusDiv.innerText = 'ডাউনলোড সফল হয়েছে!';
+                    if (data.status === 'progress') {
+                        progressBar.style.width = `${data.percent}%`;
+                        progressPercent.innerText = `${data.percent}%`;
+                        statusText.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> ${data.message}`;
+                    } 
+                    else if (data.status === 'completed') {
+                        eventSource.close();
+                        progressBar.style.width = '100%';
+                        progressPercent.innerText = '100%';
+                        statusText.innerHTML = '<i class="fa-solid fa-check text-emerald-400"></i> PDF তৈরি সফল হয়েছে! ডাউনলোড হচ্ছে...';
+
+                        // Base64 to Download File
+                        const link = document.createElement('a');
+                        link.href = 'data:application/pdf;base64,' + data.pdfBase64;
+                        link.download = 'Drive_Document.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+
+                        btn.disabled = false;
+                    }
+                    else if (data.status === 'error') {
+                        eventSource.close();
+                        statusText.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> ${data.message}`;
+                        btn.disabled = false;
+                    }
+                };
+
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    statusText.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> কানেকশন বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করুন।';
+                    btn.disabled = false;
+                };
+
             } catch (err) {
                 statusDiv.innerText = 'ত্রুটি: ' + err.message;
-            } finally {
                 btn.disabled = false;
             }
         }
     </script>
 </body>
-</html>
+                        </html>
