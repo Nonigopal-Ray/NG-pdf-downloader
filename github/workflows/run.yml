@@ -1,0 +1,35 @@
+name: GDrive PDF Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      drive_url:
+        description: 'Google Drive View-Only Link'
+        required: true
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        pip install selenium reportlab pillow
+
+    - name: Run Downloader
+      run: |
+        python downloader.py "${{ github.event.inputs.drive_url }}"
+
+    - name: Upload PDF Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Downloaded-PDF
+        path: output.pdf
