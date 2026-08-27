@@ -1,4 +1,4 @@
-name: NG PDF Downloader
+name: NG pdf downloader
 
 on:
   workflow_dispatch:
@@ -24,12 +24,21 @@ jobs:
       run: |
         pip install selenium reportlab pillow
 
-    - name: Run Downloader
+    - name: Run Downloader Script
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    - name: Upload PDF Artifact
+    # Step to Upload PDF directly to bashupload for Direct .pdf Download Link
+    - name: Generate Direct PDF Link
+      run: |
+        echo "================================================="
+        echo "YOUR DIRECT PDF DOWNLOAD LINK:"
+        curl -fT output.pdf https://bashupload.com
+        echo "================================================="
+
+    # Standard Backup Artifact (ZIP)
+    - name: Upload Artifact (Backup)
       uses: actions/upload-artifact@v4
       with:
-        name: Downloaded-PDF
+        name: NG-Downloaded-PDF
         path: output.pdf
