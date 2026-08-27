@@ -1,88 +1,86 @@
 import os
-import re
 import sys
-import requests
-import img2pdf
+import time
+from playwright.sync_api import sync_playwright
+import fitz  # PyMuPDF
 
-def extract_file_id(url):
-    match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
-    if match:
-        return match.group(1)
-    match_id = re.search(r'id=([a-zA-Z0-9_-]+)', url)
-    if match_id:
-        return match_id.group(1)
-    return None
+def download_drive_view_only_pdf(drive_url, output_pdf_name="downloaded_doc.pdf"):
+    print("[+] Browser শুরু হচ্ছে...")
+    with sync_playwright() as p:
+        # Fast load options
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": 1600, "height": 2200},
+            device_scale_factor=2 # হাই রেজোলিউশনের জন্য (2x scale)
+        )
+        page = context.new_page()
 
-def download_pdf(drive_url):
-    file_id = extract_file_id(drive_url)
-    if not file_id:
-        print("Error: Invalid Google Drive URL.")
-        sys.exit(1)
-
-    print(f"File ID Extracted: {file_id}")
-    image_files = []
-    page = 1
-    failed_attempts = 0
-
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-
-    print("Starting fast page download...")
-    
-    while True:
-        thumb_url = f"https://drive.google.com/thumbnail?id={file_id}&v=w2500-h3200&page={page}"
+        print(f"[+] URL লোড করা হচ্ছে: {drive_url}")
+        page.goto(drive_url, wait_until="networkidle")
         
-        try:
-            response = session.get(thumb_url, timeout=15)
+        # পেজ সঠিকভাবে লোড হওয়ার জন্য কিছুটা সময় অপেক্ষা
+        time.sleep(5)
+
+        # Scroll container খুঁজে বের করা
+        scroll_selector = '.drive-viewer-scroller, div[role="document"], .docos-input-textarea'
+        
+        print("[+] সব পেজ লোড করার জন্য অটো-স্ক্রোল করা হচ্ছে...")
+        # ডাউন-স্ক্রোল করে সব পেজ (Lazy loading) ট্রিগার করা
+        for _ in range(30):
+            page.keyboard.press("PageDown")
+            time.sleep(0.3)
+
+        # স্ক্রোল ব্যাক টু টপ
+        page.keyboard.press("Home")
+        time.sleep(1)
+
+        # সব ক্যানভাস/পেজ এলিমেন্টগুলো ধরা (Google Drive view only ক্যানভাসে রেন্ডার করে)
+        canvas_elements = page.query_selector_all('canvas')
+        
+        if not canvas_elements:
+            # যদি ক্যানভাস সরাসরি না পাওয়া যায়, তবে ইমেজের ডিরেক্ট এলিমেন্ট খোঁজা
+            canvas_elements = page.query_selector_all('.drive-viewer-paginated-page-image')
+
+        print(f"[+] মোট পেজ/ইমেজ পাওয়া গেছে: {len(canvas_elements)}")
+
+        if len(canvas_elements) == 0:
+            print("[-] কোনো পেজ পাওয়া যায়নি! URL বা অ্যাক্সেস চেক করুন।")
+            browser.close()
+            sys.exit(1)
+
+        image_files = []
+        for index, element in enumerate(canvas_elements):
+            element.scroll_into_view_if_needed()
+            time.sleep(0.5) # রেন্ডারিং সম্পন্ন হওয়ার জন্য সামান্য পজ
             
-            # Check if response is valid image data
-            if response.status_code == 200 and len(response.content) > 3000:
-                img_name = f"page_{page}.jpg"
-                with open(img_name, 'wb') as f:
-                    f.write(response.content)
-                
-                image_files.append(img_name)
-                if page % 10 == 0 or page == 1:
-                    print(f"Downloaded up to Page {page}...")
-                page += 1
-                failed_attempts = 0  # Reset failed count on success
-            else:
-                failed_attempts += 1
-                if failed_attempts >= 3:  # Stop immediately if 3 consecutive pages fail/end
-                    print(f"\nDocument end reached. Total valid pages: {len(image_files)}")
-                    break
-                page += 1
+            img_path = f"page_{index + 1}.png"
+            element.screenshot(path=img_path)
+            image_files.append(img_path)
+            print(f"  └─ পেজ {index + 1} ক্যাপচার করা হয়েছে।")
 
-        except Exception as e:
-            failed_attempts += 1
-            if failed_attempts >= 3:
-                print(f"\nStopped fetching pages. Total pages captured: {len(image_files)}")
-                break
+        browser.close()
 
-    if not image_files:
-        print("Error: No pages found. Ensure link permissions are open.")
-        sys.exit(1)
-
-    output_pdf = "output.pdf"
-    print("\nMerging all images into a single PDF document...")
-    
-    with open(output_pdf, "wb") as f:
-        f.write(img2pdf.convert(image_files))
-
-    print(f"SUCCESS! Created PDF with {len(image_files)} pages.")
-
-    # Clean up temporary images
+    # ইমেজগুলোকে একটি নিট PDF ফাইলে রূপান্তর
+    print("[+] ক্যাপচার করা ইমেজগুলো মিলিয়ে PDF তৈরি করা হচ্ছে...")
+    doc = fitz.open()
     for img in image_files:
-        try:
-            os.remove(img)
-        except:
-            pass
+        imgdoc = fitz.open(img)
+        pdfbytes = imgdoc.convert_to_pdf()
+        imgpdf = fitz.open("pdf", pdfbytes)
+        doc.insert_pdf(imgpdf)
+        imgdoc.close()
+        imgpdf.close()
+        # অস্থায়ী PNG ইমেজটি মুছে ফেলা
+        os.remove(img)
+
+    doc.save(output_pdf_name)
+    doc.close()
+    print(f"[✔] সফলভাবে PDF তৈরি হয়েছে: {output_pdf_name}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        download_pdf(sys.argv[1])
-    else:
-        print("Error: No Drive Link provided.")
+    if len(sys.argv) < 2:
+        print("ব্যবহার নির্দেশিকা: python download_pdf.py <GOOGLE_DRIVE_URL>")
         sys.exit(1)
+    
+    url = sys.argv[1]
+    download_drive_view_only_pdf(url)
