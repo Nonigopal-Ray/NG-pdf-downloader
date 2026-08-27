@@ -28,13 +28,15 @@ jobs:
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    # Upload to file.io for direct PDF link
+    # Uploading to tmpfiles.org for Direct PDF Download
     - name: Generate Direct PDF Link
       run: |
         echo "================================================="
         echo "YOUR DIRECT PDF DOWNLOAD LINK:"
-        curl -F "file=@output.pdf" https://file.io
-        echo ""
+        RESPONSE=$(curl -F "file=@output.pdf" https://tmpfiles.org/api/v1/upload)
+        URL=$(echo $RESPONSE | grep -o '"url":"[^"]*' | grep -o '[^"]*$')
+        DIRECT_URL=$(echo $URL | sed 's/tmpfiles.org\//tmpfiles.org\/dl\//')
+        echo "$DIRECT_URL"
         echo "================================================="
 
     # Standard Backup Artifact (ZIP)
