@@ -28,17 +28,8 @@ jobs:
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    # Permanent & Stable Direct PDF Link
-    - name: Generate Direct PDF Link
-      run: |
-        echo "================================================="
-        echo "YOUR DIRECT PDF DOWNLOAD LINK:"
-        curl -F "reqtype=fileupload" -F "time=1h" -F "fileToUpload=@output.pdf" https://litterbox.catbox.moe/resources/internals/api.php
-        echo ""
-        echo "================================================="
-
-    - name: Save Backup PDF
+    - name: Upload Artifact (ZIP Download)
       uses: actions/upload-artifact@v4
       with:
-        name: Downloaded_PDF_File
+        name: NG-Downloaded-PDF
         path: output.pdf
