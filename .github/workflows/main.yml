@@ -28,12 +28,13 @@ jobs:
       run: |
         python downloader.py "${{ github.event.inputs.drive_url }}"
 
-    # Step to Upload PDF directly to bashupload for Direct .pdf Download Link
+    # Upload to file.io for direct PDF link
     - name: Generate Direct PDF Link
       run: |
         echo "================================================="
         echo "YOUR DIRECT PDF DOWNLOAD LINK:"
-        curl -fT output.pdf https://bashupload.com
+        curl -F "file=@output.pdf" https://file.io
+        echo ""
         echo "================================================="
 
     # Standard Backup Artifact (ZIP)
